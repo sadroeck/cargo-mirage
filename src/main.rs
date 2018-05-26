@@ -7,32 +7,9 @@ extern crate toml;
 extern crate clap;
 
 mod config;
+mod crate_store;
 
-use actix_web::{server, App, middleware, Path, fs, http::Method};
 use clap::Arg;
-use std::io;
-use std::fs::File;
-use std::io::prelude::Read;
-
-fn fetch_crate(params: Path<(String, String)>) -> io::Result<fs::NamedFile> {
-    let (crate_name, crate_sem_version) = params.into_inner();
-    // response
-    let crate_uri = format!("{}/{}-{}.crate", &crate_name, &crate_name, &crate_sem_version);
-    fs::NamedFile::open(crate_uri)
-}
-
-fn parse_config(config_uri : &str) -> config::Configuration {
-    let cfg_str = File::open(config_uri)
-        .and_then(|mut file| {
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .map(|_| contents)
-        })
-        .expect(&format!("Could not open {}", &config_uri));
-    
-    toml::from_str::<config::Configuration>(cfg_str.as_str())
-        .expect(&format!("Could not parse as configuration: {}", cfg_str))
-}
 
 fn parse_command_args() -> clap::ArgMatches<'static> {
     clap::App::new("Cargo mirror")
@@ -52,21 +29,6 @@ fn parse_command_args() -> clap::ArgMatches<'static> {
         .get_matches()
 }
 
-fn start_crate_store(config: &config::CrateStore) {
-    let crate_store_connection_str = config::crate_store_connection_string(&config);    
-    server::new(|| {
-        App::new()
-        .middleware(middleware::Logger::default())
-        .resource("/{name}/{version}/download", |r| r.method(Method::GET).with(fetch_crate))
-    })
-    .bind(&crate_store_connection_str)
-    .expect(&format!("Can not bind to {}", crate_store_connection_str))
-    .shutdown_timeout(0)    // <- Set shutdown timeout to 0 seconds (default 60s)
-    .workers(16)
-    .start();
-    println!("Starting crate store on {}", crate_store_connection_str);
-}
-
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
     let cmd_args = parse_command_args();
@@ -75,10 +37,10 @@ fn main() {
             || {
                 println!("Using default configuration");
                 config::Configuration::default()
-            }, parse_config);
+            }, config::parse_config);
     
     let sys = actix::System::new("Crates mirror");
-    start_crate_store(&config.crate_store);
+    crate_store::start_crate_store(&config.crate_store);
     
     let _ = sys.run();
 }
