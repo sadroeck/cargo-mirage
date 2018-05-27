@@ -3,12 +3,13 @@ use std::io::prelude::Read;
 use super::config;
 use toml;
 
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize,Debug,Clone)]
 pub struct Configuration {
     pub crate_store: CrateStore,
+    pub crate_registry: CrateRegistry,
 }
 
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize,Debug,Clone)]
 #[serde(tag = "type")]
 pub enum ListeningInterface {
     Localhost,
@@ -16,10 +17,16 @@ pub enum ListeningInterface {
     Custom(String),
 }
 
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize,Debug,Clone)]
 pub struct CrateStore {
     port: i32,
     host: ListeningInterface,    
+}
+
+#[derive(Deserialize,Debug,Clone)]
+pub struct CrateRegistry {
+    pub uri: String,
+    pub update_interval: u32, // In Seconds
 }
 
 impl Default for Configuration {
@@ -28,6 +35,10 @@ impl Default for Configuration {
             crate_store: CrateStore{
                 port: 8080,
                 host: ListeningInterface::Localhost,
+            },
+            crate_registry: CrateRegistry{
+                uri: String::from("./crates.io-index"),
+                update_interval: 600,
             }
         }
     }

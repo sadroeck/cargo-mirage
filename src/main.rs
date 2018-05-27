@@ -5,9 +5,11 @@ extern crate futures;
 extern crate serde_derive;
 extern crate toml;
 extern crate clap;
+extern crate git2;
 
 mod config;
 mod crate_store;
+mod crate_registry;
 
 use clap::Arg;
 
@@ -40,7 +42,10 @@ fn main() {
             }, config::parse_config);
     
     let sys = actix::System::new("Crates mirror");
-    crate_store::start_crate_store(&config.crate_store);
+
+    crate_store::start(&config.crate_store);
+    let stop_crate_registry = crate_registry::start(&config.crate_registry);
     
     let _ = sys.run();
+    stop_crate_registry.send(()).expect("Could not stop registry monitoring thread");
 }

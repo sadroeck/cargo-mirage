@@ -2,7 +2,7 @@ use actix_web::{server, App, middleware, Path, fs, http::Method};
 use super::config;
 use std::io;
 
-pub fn start_crate_store(config: &config::CrateStore) {
+pub fn start(config: &config::CrateStore) {
     let crate_store_connection_str = config::crate_store_connection_string(&config);    
     server::new(|| {
         App::new()
