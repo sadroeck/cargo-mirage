@@ -3,7 +3,7 @@ use super::config;
 use std::thread;
 use std::path::Path;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 const OFFICIAL_CRATES_REGISTRY : &str = "https://github.com/rust-lang/crates.io-index.git";
 const CARGO_SIG_AUTHOR : &str = "Cargo mirage";
@@ -152,12 +152,20 @@ fn monitor_registry(repo: &Repository, stop: mpsc::Receiver<()>, interval: &u32)
             add_custom_config(repo);
         }
 
-        // Check if we need to exit the monitoring loop
-        if let Ok(()) = stop.try_recv() {
-            break;
-        }
+        let start_time = SystemTime::now();
+        loop {
+            // Check if we need to exit the monitoring loop
+            if let Ok(()) = stop.try_recv() {
+                break;
+            }
 
-        thread::sleep(Duration::from_secs(*interval as u64));
+            let waiting_time_over = SystemTime::now()
+            .duration_since(start_time)
+            .ok().map(|delta| delta > Duration::from_secs(*interval as u64))
+            .unwrap_or(false);
+            if waiting_time_over { break; }
+            thread::sleep(Duration::from_secs(5))
+        }
     }
 }
 
