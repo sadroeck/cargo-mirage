@@ -5,19 +5,13 @@ replacement](https://doc.rust-lang.org/cargo/reference/source-replacement.html).
 
 ## Installation
 
-### With access to crates.io
-
-```
-$ cargo install cargo-mirage
-```
-
 ### Building from source
 
 This also requires access to crates.io or a local copy of all dependent crates
 
-### Pre-built binaries
-
-WIP on github.com/releases
+```
+$ cargo build
+```
 
 ## Example Usage
 
