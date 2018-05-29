@@ -21,7 +21,23 @@ Run `cargo-mirage` on the host where you'd like the mirror to be located.
 Configuration can be specified with a `-c <my_config>.toml` command line argument.
 If no configuration is specified, a default configuration will be used.
 
-WIP
+### Configuring cargo-mirage
+
+```toml
+[crate_registry]
+update_interval = <Monitoring interval for upstream crates.io-index changes - in seconds>
+uri = "<local crates.io git repo location>"
+
+[crate_store]
+crawlers = <number of crate downloaders>
+folder = "<local folder where to store crates>"
+port = <port where to host the crate serving mirror>
+workers = <number of crate store server threads>
+
+[crate_store.host]
+interface = "localhost | all | custom"
+interface_str = "<interface spec in case of custom>"
+```
 
 ### Configuring cargo
 
@@ -29,14 +45,14 @@ add this to your .cargo/config for this project:
 
 ```toml
 [source.crates-io]
-replace-with = 'mirage'
+replace-with = "mirage"
 
 [source.mirage]
-registry = 'http://<host>:<port>/'
+registry = "http://<host>:<port>/"
 ```
 
 ## License
 
-This project is licensed under either of
+This project is licensed under
 
 * Apache License, Version 2.0, ([Apache-v2.0](http://www.apache.org/licenses/LICENSE-2.0))
