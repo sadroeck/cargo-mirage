@@ -6,6 +6,10 @@ extern crate serde_derive;
 extern crate toml;
 extern crate clap;
 extern crate git2;
+extern crate reqwest;
+extern crate futures_cpupool;
+extern crate glob;
+extern crate serde_json;
 
 mod config;
 mod crate_store;
@@ -43,9 +47,9 @@ fn main() {
     
     let sys = actix::System::new("Crates mirror");
 
-    crate_store::start(&config.crate_store);
-    let stop_crate_registry = crate_registry::start(&config.crate_registry);
-    
+    let (stop_crate_registry, start_crate_download) = crate_registry::start(&config.crate_registry);
+    crate_store::start(&config.crate_store, &config.crate_registry.uri, start_crate_download);
+
     let _ = sys.run();
     stop_crate_registry.send(()).expect("Could not stop registry monitoring thread");
 }

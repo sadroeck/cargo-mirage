@@ -74,12 +74,10 @@ fn merge_upstream_master(repo: &Repository) {
         .and_then(|remote_commit_opt| {
             match remote_commit_opt {
                 Some(remote_commit) => {
-                    println!("Committing merge");
                     let mut index = repo.index().expect("Could not retrieve git index");
                     index.write_tree()
                     .and_then(|oid| { repo.find_tree(oid) })
                     .and_then(|tree| {
-                        println!("Actually committing");
                         let signature = Signature::now(CARGO_SIG_AUTHOR, CARGO_SIG_EMAIL)
                             .expect("Could not create signature");
                         let parent_commit = find_head_commit(&repo)?;
@@ -133,7 +131,7 @@ fn add_custom_config(repo: &Repository) {
     }).expect("Could not update registry to a local configuration");
 }
 
-fn monitor_registry(repo: &Repository, stop: mpsc::Receiver<()>, interval: &u32) {
+fn monitor_registry(repo: &Repository, stop: mpsc::Receiver<()>, download_crates: mpsc::Sender<()>, interval: &u32) {
     loop {
         let mut remote = match repo.find_remote("origin") {
             Ok(r) => r,
@@ -151,6 +149,9 @@ fn monitor_registry(repo: &Repository, stop: mpsc::Receiver<()>, interval: &u32)
         if !has_custom_config(repo) {
             add_custom_config(repo);
         }
+
+        // Start downloading crates
+        download_crates.send(()).unwrap_or_else(|e| eprintln!("Could not trigger crates for download: {:?}", e));
 
         let start_time = SystemTime::now();
         loop {
@@ -178,13 +179,14 @@ fn open_git_repo(uri: &str) -> Repository {
     repo.expect(&format!("Could not open repository: {}", &uri))
 }
 
-pub fn start(config: &config::CrateRegistry) -> mpsc::Sender<()> {
+pub fn start(config: &config::CrateRegistry) -> (mpsc::Sender<()>, mpsc::Receiver<()>) {
     let config = config.clone();
-    let (tx, rx) = mpsc::channel();
+    let (tx_monitoring, rx_monitoring) = mpsc::channel();
+    let (tx_download_crates, rx_download_crates) = mpsc::channel();
 
     thread::spawn(move || {
         let repo = open_git_repo(&config.uri);
-        monitor_registry(&repo, rx, &config.update_interval)
+        monitor_registry(&repo, rx_monitoring, tx_download_crates, &config.update_interval)
     });
-    tx
+    (tx_monitoring, rx_download_crates)
 }

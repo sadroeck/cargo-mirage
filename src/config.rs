@@ -19,8 +19,9 @@ pub enum ListeningInterface {
 
 #[derive(Deserialize,Debug,Clone)]
 pub struct CrateStore {
-    port: i32,
-    host: ListeningInterface,    
+    pub port: i32,
+    pub host: ListeningInterface,
+    pub folder: String,
 }
 
 #[derive(Deserialize,Debug,Clone)]
@@ -35,6 +36,7 @@ impl Default for Configuration {
             crate_store: CrateStore{
                 port: 8080,
                 host: ListeningInterface::Localhost,
+                folder: String::from("crates"),
             },
             crate_registry: CrateRegistry{
                 uri: String::from("./crates.io-index"),

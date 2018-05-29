@@ -9,8 +9,8 @@ replacement](https://doc.rust-lang.org/cargo/reference/source-replacement.html).
 
 This also requires access to crates.io or a local copy of all dependent crates
 
-```
-$ cargo build
+```sh
+cargo build
 ```
 
 ## Example Usage
@@ -25,14 +25,14 @@ WIP
 
 ### Configuring cargo
 
-```
 add this to your .cargo/config for this project:
 
-    [source.crates-io]
-    replace-with = 'mirage'
+```toml
+[source.crates-io]
+replace-with = 'mirage'
 
-    [source.mirage]
-    registry = 'http://<host>:<port>/'
+[source.mirage]
+registry = 'http://<host>:<port>/'
 ```
 
 ## License
