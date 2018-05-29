@@ -32,11 +32,11 @@ pub fn start(config : &config::CrateStore, registry_uri: &str, crate_download_tr
     .bind(&crate_store_connection_str)
     .expect(&format!("Can not bind to {}", crate_store_connection_str))
     .shutdown_timeout(0)    // <- Set shutdown timeout to 0 seconds (default 60s)
-    .workers(16)
+    .workers(config.workers as usize)
     .start();
     println!("Starting crate store on {}", crate_store_connection_str);
 
-    let threadpool = CpuPool::new(10);
+    let threadpool = CpuPool::new(config.crawlers as usize);
     let registry_uri = String::from(registry_uri);
     let folder_for_threadpool = config.folder.clone();
     thread::spawn(move || {
