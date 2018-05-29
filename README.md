@@ -25,14 +25,14 @@ If no configuration is specified, a default configuration will be used.
 
 ```toml
 [crate_registry]
-update_interval = <Monitoring interval for upstream crates.io-index changes - in seconds>
+update_interval = 600 # Monitoring interval for upstream crates.io-index changes - in seconds
 uri = "<local crates.io git repo location>"
 
 [crate_store]
-crawlers = <number of crate downloaders>
+crawlers = 10 # number of crate downloaders
 folder = "<local folder where to store crates>"
-port = <port where to host the crate serving mirror>
-workers = <number of crate store server threads>
+port = 8080 # port where to host the crate serving mirror
+workers = 16 # number of crate store server threads
 
 [crate_store.host]
 interface = "localhost | all | custom"
