@@ -14,6 +14,7 @@ extern crate serde_json;
 mod config;
 mod crate_store;
 mod crate_registry;
+mod git_utils;
 
 use clap::Arg;
 

@@ -4,6 +4,7 @@ use std::thread;
 use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime};
+use git_utils;
 
 const OFFICIAL_CRATES_REGISTRY : &str = "https://github.com/rust-lang/crates.io-index.git";
 const CARGO_SIG_AUTHOR : &str = "Cargo mirage";
@@ -17,10 +18,13 @@ enum MergeAction<'a> {
 
 fn merge_analysis_to_action<'a>(merge_analysis: MergeAnalysis, commit: AnnotatedCommit<'a>) -> MergeAction {
     if merge_analysis.contains(MergeAnalysis::ANALYSIS_FASTFORWARD) {
+        println!("Fast-forward merge of remote changes");
         MergeAction::FastForward
     } else if merge_analysis.contains(MergeAnalysis::ANALYSIS_NORMAL) {
+        println!("Merging remote changes");
         MergeAction::Normal(commit)
     } else {
+        println!("Repo is up-to-date");
         MergeAction::Nop
     }
 }
@@ -46,23 +50,9 @@ fn merge_upstream_master(repo: &Repository) {
         })
         .and_then(|(remote_id, action)| {
             match action {
-                MergeAction::FastForward => {
-                    // TODO: fix FF merge, still consolidates into single commit
-                    repo.find_branch("origin/master", BranchType::Remote)
-                        .and_then(|remote_branch| remote_branch.into_reference().peel(ObjectType::Tree))
-                        .and_then(|tree| repo.checkout_tree(&tree, None))
-                        .and_then(|()| repo.head())
-                        .and_then(|mut head| head.set_target(remote_id, "fast-forward to remote master"))
-                        .and_then(|_| { 
-                            println!("Fast-forward merge");
-                            Ok(None)
-                        })
-                },
-                MergeAction::Nop => {
-                    println!("repo up-to-date");
-                    Ok(None)
-                },
-                MergeAction::Normal(remote_commit) => repo.merge(&[&remote_commit], None, None).map(|()| Some(remote_commit)) // cleanup failed merge
+                MergeAction::FastForward => git_utils::fast_forward_merge(&repo, remote_id),
+                MergeAction::Nop => Ok(None),
+                MergeAction::Normal(remote_commit) => git_utils::force_merge_remote_commit(&repo, remote_commit),
             }
         })
         .and_then(|annotated_remote_commit_opt| {
