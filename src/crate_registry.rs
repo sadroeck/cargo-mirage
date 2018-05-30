@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime};
 use git_utils;
-use std::fs::File;
+use std::fs::OpenOptions;
 use serde_json;
 
 const OFFICIAL_CRATES_REGISTRY : &str = "https://github.com/rust-lang/crates.io-index.git";
@@ -110,7 +110,7 @@ fn has_custom_config(repo: &Repository) -> bool {
         }).expect("Could not find commit")
 }
 
-fn add_custom_config(repo: &Repository, connection_str: &str) {
+fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str) {
     let mut index = repo.index().expect("Could not retrieve git index");
 
     let new_config = CratesIOConfig{ 
@@ -118,7 +118,8 @@ fn add_custom_config(repo: &Repository, connection_str: &str) {
         dl: format!("http://{}/", connection_str),
     };
 
-    File::open("config.json")
+    let config_json_path = Path::new(registry_uri).join("config.json");
+    OpenOptions::new().read(true).write(true).create(true).truncate(true).open(config_json_path)
     .map_err(serde_json::Error::io)
     .and_then(|file| serde_json::to_writer(file, &new_config))
     .unwrap_or_else(|e| eprintln!("Could not write to config.json: {}", e));
@@ -143,6 +144,7 @@ fn monitor_registry(
     repo: &Repository,
     stop: mpsc::Receiver<()>,
     download_crates: mpsc::Sender<()>,
+    registry_uri: &str,
     interval: &u32,
     crate_store_connection: &str) {
     loop {
@@ -160,7 +162,7 @@ fn monitor_registry(
         merge_upstream_master(repo);
 
         if !has_custom_config(repo) {
-            add_custom_config(repo, crate_store_connection);
+            add_custom_config(repo, registry_uri, crate_store_connection);
         }
 
         // Start downloading crates
@@ -200,7 +202,7 @@ pub fn start(registry_config: &config::CrateRegistry, crate_store_config: &confi
 
     thread::spawn(move || {
         let repo = open_git_repo(&registry_config.uri);
-        monitor_registry(&repo, rx_monitoring, tx_download_crates, &registry_config.update_interval, &crate_store_connection_string)
+        monitor_registry(&repo, rx_monitoring, tx_download_crates, &registry_config.uri, &registry_config.update_interval, &crate_store_connection_string)
     });
     (tx_monitoring, rx_download_crates)
 }
