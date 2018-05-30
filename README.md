@@ -1,7 +1,22 @@
 # cargo-mirage
 
+NOTE: This is a Work-In-Progress. It works as an MVP, but might require some tweaks to run in all environments. Many features are still missing. A list can be found below.
+
+
 This is a utility to set up a dedicated [crates.io](https://crates.io) mirror. Cargo can be configured to use the newly created mirror by using Cargo's support for [source
 replacement](https://doc.rust-lang.org/cargo/reference/source-replacement.html).
+
+## Features
+
+- [x] HTTP Crate download server
+- [x] Registry with custom configuration
+- [x] Background crate crawler & downloaders
+- [ ] Git daemonization ( currently has to be set up manually )
+- [ ] Configurable logging & logging-levels
+- [ ] HTTPS support
+- [ ] Custom upstream crates.io sources
+- [ ] Yanked crate handling
+- [ ] Private crates (not in crates.io registry)
 
 ## Installation
 
