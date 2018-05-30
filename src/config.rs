@@ -29,6 +29,7 @@ pub struct CrateStore {
     pub folder: String,
     pub workers: i32,
     pub crawlers: i32,
+    pub public_host: String,
 }
 
 #[derive(Deserialize, Serialize, Debug,Clone)]
@@ -47,6 +48,7 @@ impl Default for Configuration {
                 folder: String::from("crates"),
                 workers: 16,
                 crawlers: 10,
+                public_host: String::from("127.0.0.1"),
             },
             crate_registry: CrateRegistry{
                 uri: String::from("./crates.io-index"),
