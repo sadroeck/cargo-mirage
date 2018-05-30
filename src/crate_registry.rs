@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime};
 use git_utils;
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use serde_json;
 
 const OFFICIAL_CRATES_REGISTRY : &str = "https://github.com/rust-lang/crates.io-index.git";
@@ -97,30 +97,39 @@ fn merge_upstream_master(repo: &Repository) {
         repo.cleanup_state().expect("Couldn't clean-up state")
 }
 
-fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str) {
-    let mut index = repo.index().expect("Could not retrieve git index");
+fn read_config_from_file(registry_uri: &str) -> Option<CratesIOConfig> {
+    let config_json_path = Path::new(registry_uri).join("config.json");
+    let read_file = OpenOptions::new().read(true).open(config_json_path)
+        .expect("Could not read config.json");
+    serde_json::from_reader(&read_file).ok()
+}
 
+fn write_config_to_file(config: &CratesIOConfig, registry_uri: &str) -> Result<(), serde_json::Error> {
+    let config_json_path = Path::new(registry_uri).join("config.json");
+    let write_file = OpenOptions::new().write(true).create(true).truncate(true).open(config_json_path)
+            .expect("Could not config.json for writing");
+    serde_json::to_writer(&write_file, &config)
+}
+
+fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str) {
     let new_config = CratesIOConfig{ 
         api: String::from("https://crates.io/"),    
         dl: format!("http://{}/", connection_str),
     };
 
-    let config_json_path = Path::new(registry_uri).join("config.json");
-    OpenOptions::new().read(true).write(true).create(true).truncate(true).open(config_json_path)
-    .map_err(serde_json::Error::io)
-    .and_then(|file| {
-        let json_opt = serde_json::from_reader(&file).ok();
-        Ok((file, json_opt))
-    })
-    .and_then(|(file, current_config_opt) : (File, Option<CratesIOConfig>)| {
-        let equal = current_config_opt.map(|current_config| current_config == new_config).unwrap_or(false);
-        if equal {
-            Ok(())
-        } else {
-            serde_json::to_writer(&file, &new_config)
-        }
-    })
-    .unwrap_or_else(|e| eprintln!("Could not write to config.json: {}", e));
+    let current_config_opt = read_config_from_file(registry_uri);
+    let equal = current_config_opt
+        .map(|current_config| current_config == new_config)
+        .unwrap_or(false);
+
+    if !equal {
+        write_config_to_file(&new_config, registry_uri).expect("Could not write config.json");
+        commit_custom_config(repo).expect("Could not commit config.json");
+    }
+}
+
+fn commit_custom_config(repo: &Repository) -> Result<(), Error> {
+    let mut index = repo.index()?;
 
     index.add_path(Path::new("config.json"))
     .and_then(|()| index.write_tree())
@@ -137,7 +146,6 @@ fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str
             &[&parent_commit]) // parents
     })
     .and_then(|_| git_utils::clean_working_dir(repo))
-    .expect("Could not update registry to a local configuration");
 }
 
 fn monitor_registry(
