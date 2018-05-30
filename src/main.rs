@@ -48,7 +48,7 @@ fn main() {
     
     let sys = actix::System::new("Crates mirror");
 
-    let (stop_crate_registry, start_crate_download) = crate_registry::start(&config.crate_registry);
+    let (stop_crate_registry, start_crate_download) = crate_registry::start(&config.crate_registry, &config.crate_store);
     crate_store::start(&config.crate_store, &config.crate_registry.uri, start_crate_download);
 
     let _ = sys.run();

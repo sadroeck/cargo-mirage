@@ -5,10 +5,18 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime};
 use git_utils;
+use std::fs::File;
+use serde_json;
 
 const OFFICIAL_CRATES_REGISTRY : &str = "https://github.com/rust-lang/crates.io-index.git";
 const CARGO_SIG_AUTHOR : &str = "Cargo mirage";
 const CARGO_SIG_EMAIL : &str = "cargo@mirage.io";
+
+#[derive(Serialize,Deserialize,Clone,Debug)]
+struct CratesIOConfig {
+    pub dl: String,
+    pub api: String,
+}
 
 enum MergeAction<'a> {
     FastForward,
@@ -102,8 +110,18 @@ fn has_custom_config(repo: &Repository) -> bool {
         }).expect("Could not find commit")
 }
 
-fn add_custom_config(repo: &Repository) {
+fn add_custom_config(repo: &Repository, connection_str: &str) {
     let mut index = repo.index().expect("Could not retrieve git index");
+
+    let new_config = CratesIOConfig{ 
+        api: String::from("https://crates.io/"),    
+        dl: format!("http://{}/", connection_str),
+    };
+
+    File::open("config.json")
+    .map_err(serde_json::Error::io)
+    .and_then(|file| serde_json::to_writer(file, &new_config))
+    .unwrap_or_else(|e| eprintln!("Could not write to config.json: {}", e));
 
     index.add_path(Path::new("config.json"))
     .and_then(|()| index.write_tree())
@@ -121,7 +139,12 @@ fn add_custom_config(repo: &Repository) {
     }).expect("Could not update registry to a local configuration");
 }
 
-fn monitor_registry(repo: &Repository, stop: mpsc::Receiver<()>, download_crates: mpsc::Sender<()>, interval: &u32) {
+fn monitor_registry(
+    repo: &Repository,
+    stop: mpsc::Receiver<()>,
+    download_crates: mpsc::Sender<()>,
+    interval: &u32,
+    crate_store_connection: &str) {
     loop {
         let mut remote = match repo.find_remote("origin") {
             Ok(r) => r,
@@ -137,7 +160,7 @@ fn monitor_registry(repo: &Repository, stop: mpsc::Receiver<()>, download_crates
         merge_upstream_master(repo);
 
         if !has_custom_config(repo) {
-            add_custom_config(repo);
+            add_custom_config(repo, crate_store_connection);
         }
 
         // Start downloading crates
@@ -169,14 +192,15 @@ fn open_git_repo(uri: &str) -> Repository {
     repo.expect(&format!("Could not open repository: {}", &uri))
 }
 
-pub fn start(config: &config::CrateRegistry) -> (mpsc::Sender<()>, mpsc::Receiver<()>) {
-    let config = config.clone();
+pub fn start(registry_config: &config::CrateRegistry, crate_store_config: &config::CrateStore) -> (mpsc::Sender<()>, mpsc::Receiver<()>) {
+    let registry_config = registry_config.clone();
+    let crate_store_connection_string = config::crate_store_connection_string(crate_store_config);
     let (tx_monitoring, rx_monitoring) = mpsc::channel();
     let (tx_download_crates, rx_download_crates) = mpsc::channel();
 
     thread::spawn(move || {
-        let repo = open_git_repo(&config.uri);
-        monitor_registry(&repo, rx_monitoring, tx_download_crates, &config.update_interval)
+        let repo = open_git_repo(&registry_config.uri);
+        monitor_registry(&repo, rx_monitoring, tx_download_crates, &registry_config.update_interval, &crate_store_connection_string)
     });
     (tx_monitoring, rx_download_crates)
 }
