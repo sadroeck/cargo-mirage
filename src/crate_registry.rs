@@ -50,51 +50,52 @@ fn find_remote_master_tip(repo : &Repository) -> Result<Commit, Error> {
 }
 
 fn merge_upstream_master(repo: &Repository) {
-    find_remote_master_tip(repo)
-        .and_then(|remote_commit| repo.find_annotated_commit(remote_commit.id()))
-        .and_then(|remote| {
-            repo.merge_analysis(&[&remote])
-                .map(|(analysis, _)| (remote.id(), merge_analysis_to_action(analysis, remote)))
-        })
-        .and_then(|(remote_id, action)| {
-            match action {
-                MergeAction::FastForward => git_utils::fast_forward_merge(&repo, remote_id),
-                MergeAction::Nop => Ok(None),
-                MergeAction::Normal(remote_commit) => git_utils::force_merge_remote_commit(&repo, remote_commit),
-            }
-        })
-        .and_then(|annotated_remote_commit_opt| {
-            match annotated_remote_commit_opt {
-                Some(annotated_remote_commit) => repo.find_commit(annotated_remote_commit.id()).map(|x| Some(x)),
-                None => Ok(None),
-            }
-        })
-        .and_then(|remote_commit_opt| {
-            match remote_commit_opt {
-                Some(remote_commit) => {
-                    let mut index = repo.index().expect("Could not retrieve git index");
-                    index.write_tree()
-                    .and_then(|oid| { repo.find_tree(oid) })
-                    .and_then(|tree| {
-                        let signature = Signature::now(CARGO_SIG_AUTHOR, CARGO_SIG_EMAIL)
-                            .expect("Could not create signature");
-                        let parent_commit = find_head_commit(&repo)?;
-                        repo.commit(Some("HEAD"), //  point HEAD to our new commit
-                            &signature, // author
-                            &signature, // committer
-                            "Merge crates.io-index master", // commit message
-                            &tree, // tree
-                            &[&parent_commit, &remote_commit]) // parents
-                    })
-                    .map(|_| ())
-                },
-                None => Ok(()),
-            }
-        })
-        .and_then(|_| git_utils::clean_working_dir(repo))
-        .unwrap_or_else(|e| eprintln!("Could not merge remote master: {:?}", e));
+    git_utils::clean_working_dir(repo)
+    .and_then(|()| find_remote_master_tip(repo))
+    .and_then(|remote_commit| repo.find_annotated_commit(remote_commit.id()))
+    .and_then(|remote| {
+        repo.merge_analysis(&[&remote])
+            .map(|(analysis, _)| (remote.id(), merge_analysis_to_action(analysis, remote)))
+    })
+    .and_then(|(remote_id, action)| {
+        match action {
+            MergeAction::FastForward => git_utils::fast_forward_merge(&repo, remote_id),
+            MergeAction::Nop => Ok(None),
+            MergeAction::Normal(remote_commit) => git_utils::force_merge_remote_commit(&repo, remote_commit),
+        }
+    })
+    .and_then(|annotated_remote_commit_opt| {
+        match annotated_remote_commit_opt {
+            Some(annotated_remote_commit) => repo.find_commit(annotated_remote_commit.id()).map(|x| Some(x)),
+            None => Ok(None),
+        }
+    })
+    .and_then(|remote_commit_opt| {
+        match remote_commit_opt {
+            Some(remote_commit) => {
+                let mut index = repo.index().expect("Could not retrieve git index");
+                index.write_tree()
+                .and_then(|oid| { repo.find_tree(oid) })
+                .and_then(|tree| {
+                    let signature = Signature::now(CARGO_SIG_AUTHOR, CARGO_SIG_EMAIL)
+                        .expect("Could not create signature");
+                    let parent_commit = find_head_commit(&repo)?;
+                    repo.commit(Some("HEAD"), //  point HEAD to our new commit
+                        &signature, // author
+                        &signature, // committer
+                        "Merge crates.io-index master", // commit message
+                        &tree, // tree
+                        &[&parent_commit, &remote_commit]) // parents
+                })
+                .map(|_| ())
+            },
+            None => Ok(()),
+        }
+    })
+    .and_then(|_| git_utils::clean_working_dir(repo))
+    .unwrap_or_else(|e| eprintln!("Could not merge remote master: {:?}", e));
 
-        repo.cleanup_state().expect("Couldn't clean-up state")
+    repo.cleanup_state().expect("Couldn't clean-up state")
 }
 
 fn read_config_from_file(registry_uri: &str) -> Option<CratesIOConfig> {
