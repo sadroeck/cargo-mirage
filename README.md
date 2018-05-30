@@ -50,6 +50,7 @@ crawlers = 10 # number of crate downloaders
 folder = "<local folder where to store crates>"
 port = 8080 # port where to host the crate serving mirror
 workers = 16 # number of crate store server threads
+public_host = "the.public.ip.of.myserver.com | 10.1.2.3"
 
 [crate_store.host]
 interface = "localhost | all | custom"
