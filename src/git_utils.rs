@@ -24,7 +24,16 @@ pub fn fast_forward_merge<'a>(repo: &Repository, remote_commmit_id: Oid) -> Resu
     .and_then(|()| repo.head())
     .and_then(|mut head| head.set_target(remote_commmit_id, "fast-forward to remote master"))
     .and_then(|_| { 
-        println!("Fast-forward merge");
         Ok(None)
+    })
+}
+
+pub fn clean_working_dir(repo: &Repository) -> Result<(), Error> {
+    repo.index()
+    .and_then(|mut index| index.clear())
+    .and_then(|()| {
+        let mut checkout_opts = CheckoutBuilder::new();
+        checkout_opts.force().use_theirs(true);
+        repo.checkout_head(Some(&mut checkout_opts))
     })
 }

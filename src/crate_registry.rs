@@ -5,14 +5,14 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime};
 use git_utils;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use serde_json;
 
 const OFFICIAL_CRATES_REGISTRY : &str = "https://github.com/rust-lang/crates.io-index.git";
 const CARGO_SIG_AUTHOR : &str = "Cargo mirage";
 const CARGO_SIG_EMAIL : &str = "cargo@mirage.io";
 
-#[derive(Serialize,Deserialize,Clone,Debug)]
+#[derive(Serialize,Deserialize,Clone,Debug, PartialEq)]
 struct CratesIOConfig {
     pub dl: String,
     pub api: String,
@@ -86,28 +86,15 @@ fn merge_upstream_master(repo: &Repository) {
                             &tree, // tree
                             &[&parent_commit, &remote_commit]) // parents
                     })
-                    .map(|x| Some(x))
+                    .map(|_| ())
                 },
-                None => Ok(None),
+                None => Ok(()),
             }
         })
-        .map(|_| ()).unwrap_or_else(|e| { 
-            eprintln!("Could not merge remote master: {:?}", e);
-        });
+        .and_then(|_| git_utils::clean_working_dir(repo))
+        .unwrap_or_else(|e| eprintln!("Could not merge remote master: {:?}", e));
 
         repo.cleanup_state().expect("Couldn't clean-up state")
-}
-
-fn has_custom_config(repo: &Repository) -> bool {
-    repo.head()
-        .and_then(|head| head.resolve())
-        .and_then(|head| head.peel(ObjectType::Commit))
-        .and_then(|head_obj| head_obj.into_commit()
-            .map_err(|e| Error::from_str(format!("Could not find commit: {:?}", e).as_str())))
-        .map(|head_commit| { 
-            head_commit.author().name().unwrap_or("") == CARGO_SIG_AUTHOR 
-            && head_commit.author().email().unwrap_or("") == CARGO_SIG_EMAIL
-        }).expect("Could not find commit")
 }
 
 fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str) {
@@ -121,7 +108,18 @@ fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str
     let config_json_path = Path::new(registry_uri).join("config.json");
     OpenOptions::new().read(true).write(true).create(true).truncate(true).open(config_json_path)
     .map_err(serde_json::Error::io)
-    .and_then(|file| serde_json::to_writer(file, &new_config))
+    .and_then(|file| {
+        let json_opt = serde_json::from_reader(&file).ok();
+        Ok((file, json_opt))
+    })
+    .and_then(|(file, current_config_opt) : (File, Option<CratesIOConfig>)| {
+        let equal = current_config_opt.map(|current_config| current_config == new_config).unwrap_or(false);
+        if equal {
+            Ok(())
+        } else {
+            serde_json::to_writer(&file, &new_config)
+        }
+    })
     .unwrap_or_else(|e| eprintln!("Could not write to config.json: {}", e));
 
     index.add_path(Path::new("config.json"))
@@ -137,7 +135,9 @@ fn add_custom_config(repo: &Repository, registry_uri: &str, connection_str: &str
             "API mirror as configuration", // commit message
             &tree, // tree
             &[&parent_commit]) // parents
-    }).expect("Could not update registry to a local configuration");
+    })
+    .and_then(|_| git_utils::clean_working_dir(repo))
+    .expect("Could not update registry to a local configuration");
 }
 
 fn monitor_registry(
@@ -157,13 +157,11 @@ fn monitor_registry(
         println!("Fetching remote repository");
         remote.fetch(&["master"], None, None).expect("Could not fetch from remote repository");
         println!("Fetch complete");
+        remote.disconnect();
 
         // Try to merge upstream
         merge_upstream_master(repo);
-
-        if !has_custom_config(repo) {
-            add_custom_config(repo, registry_uri, crate_store_connection);
-        }
+        add_custom_config(repo, registry_uri, crate_store_connection);
 
         // Start downloading crates
         download_crates.send(()).unwrap_or_else(|e| eprintln!("Could not trigger crates for download: {:?}", e));
