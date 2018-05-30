@@ -1,4 +1,5 @@
 use git2::{Repository, build::CheckoutBuilder, MergeOptions, FileFavor, IndexAddOption, AnnotatedCommit, Error, Oid, BranchType, ObjectType};
+use std::iter;
 
 pub fn force_merge_remote_commit<'a>(repo: &Repository, remote_commit: AnnotatedCommit<'a>) -> Result<Option<AnnotatedCommit<'a>>, Error> {
     let mut checkout_opts = CheckoutBuilder::new();
@@ -9,7 +10,7 @@ pub fn force_merge_remote_commit<'a>(repo: &Repository, remote_commit: Annotated
 
     if remote_commit_opt.is_ok() {
         repo.index()
-        .and_then(|mut index| index.add_all(["*"].into_iter(), IndexAddOption::FORCE, None))
+        .and_then(|mut index| index.add_all(iter::once("*"), IndexAddOption::FORCE, None))
         .expect("Could not commit merge");
     }
 
@@ -30,10 +31,14 @@ pub fn fast_forward_merge<'a>(repo: &Repository, remote_commmit_id: Oid) -> Resu
 
 pub fn clean_working_dir(repo: &Repository) -> Result<(), Error> {
     repo.index()
-    .and_then(|mut index| index.clear())
-    .and_then(|()| {
-        let mut checkout_opts = CheckoutBuilder::new();
-        checkout_opts.force().use_theirs(true);
-        repo.checkout_head(Some(&mut checkout_opts))
+    .and_then(|mut index| {
+        index.clear()
+        .and_then(|()| {
+            let mut checkout_opts = CheckoutBuilder::new();
+            checkout_opts.force().use_theirs(true);
+            repo.checkout_head(Some(&mut checkout_opts))
+        })
+        .and_then(|()| index.add_all(iter::once("*"), IndexAddOption::FORCE, None))
+        .and_then(|()| index.write())
     })
 }
