@@ -203,7 +203,7 @@ fn open_git_repo(uri: &str) -> Repository {
 
 pub fn start(registry_config: &config::CrateRegistry, crate_store_config: &config::CrateStore) -> (mpsc::Sender<()>, mpsc::Receiver<()>) {
     let registry_config = registry_config.clone();
-    let public_crate_store_interface = format!("http://{}:{}/", crate_store_config.public_host, crate_store_config.port);
+    let public_crate_store_interface = format!("http://{}:{}", crate_store_config.public_host, crate_store_config.port);
     let (tx_monitoring, rx_monitoring) = mpsc::channel();
     let (tx_download_crates, rx_download_crates) = mpsc::channel();
 
